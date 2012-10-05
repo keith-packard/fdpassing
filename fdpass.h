@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <string.h>
 
-int
+ssize_t
 sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd);
 
 ssize_t

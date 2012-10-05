@@ -17,53 +17,17 @@
 
 #include "fdpass.h"
 
-char *
-itoa(int i, char *buf)
-{
-	buf += 10;
-	*--buf = '\0';
-	do {
-		*--buf = '0' + i % 10;
-	} while ((i /= 10));
-	return buf;
-}
-
-void
-handler(int i)
-{
-	char	buf[12];
-	char	*b = itoa(i, buf);
-	
-	write (2, "signal ", 7);
-	write (2, b, strlen(b));
-	write (2, "\n", 1);
-	_exit(1);
-}
-
 void
 child(int sock)
 {
-	int	fd, *fdp;
+	int	fd;
 	char	buf[16];
 	ssize_t	size;
-	int	i = 0;
 
-	signal(SIGSEGV, handler);
-	sleep(1);
-	for (;;) {
-		if (!(i & 1))
-			fdp = NULL;
-		else
-			fdp = &fd;
-		size = sock_fd_read(sock, buf, sizeof(buf), fdp);
-		if (size == 0)
-			break;
-		printf ("read %d\n", size);
-		if (fdp && fd != -1)
-			write(fd, "hello, world\n", 13);
-		i++;
-	}
-	printf ("child done\n");
+	size = sock_fd_read(sock, buf, sizeof(buf), &fd);
+	printf ("read %d\n", size);
+	if (fd != -1)
+		write(fd, "hello, world\n", 13);
 }
 
 void
@@ -73,15 +37,9 @@ parent(int sock)
 	int	i;
 	int	fd;
 
-	for (i = 0; i < 8; i++) {
-		if ((i & 1))
-			fd = -1;
-		else
-			fd = 1;
-		size = sock_fd_write(sock, "1", 1, fd);
-		printf ("wrote %d\n", size);
-	}
-	close(sock);
+	fd = 1;
+	size = sock_fd_write(sock, "1", 1, 1);
+	printf ("wrote %d\n", size);
 }
 
 int
