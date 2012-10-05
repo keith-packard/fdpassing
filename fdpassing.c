@@ -22,23 +22,20 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-void
-child(int sock)
+int
+sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd)
 {
 	ssize_t		size;
 	struct msghdr	msg;
 	struct iovec	iov;
-	char		buf[16];
 	union {
 		struct cmsghdr	cmsghdr;
 		char		control[CMSG_SPACE(sizeof (int))];
 	} cmsgu;
 	struct cmsghdr	*cmsg;
 
-	int		fd;
-
 	iov.iov_base = buf;
-	iov.iov_len = sizeof(buf);
+	iov.iov_len = bufsize;
 
 	msg.msg_name = NULL;
 	msg.msg_namelen = 0;
@@ -67,53 +64,80 @@ child(int sock)
 			exit(1);
 		}
 
-		fd = *((int *) CMSG_DATA(cmsg));
-		printf ("received fd %d\n", fd);
-		write(fd, "hello, world\n", 13);
+		*fd = *((int *) CMSG_DATA(cmsg));
+		printf ("received fd %d\n", *fd);
 	} else {
-		fd = -1;
+		*fd = -1;
 	}
-	exit(0);
+	return size;
 }
 
 void
-parent(int sock)
+child(int sock)
+{
+	int	fd;
+	char	buf[16];
+	ssize_t	size;
+
+	size = sock_fd_read(sock, buf, sizeof(buf), &fd);
+	if (size == 0)
+		return;
+	printf ("read %d\n", size);
+	if (fd != -1)
+		write(fd, "hello, world\n", 13);
+}
+
+ssize_t
+sock_fd_write(int sock, void *buf, ssize_t buflen, int fd)
 {
 	ssize_t		size;
 	struct msghdr	msg;
 	struct iovec	iov;
-	char		buf[16];
 	union {
 		struct cmsghdr	cmsghdr;
 		char		control[CMSG_SPACE(sizeof (int))];
 	} cmsgu;
 	struct cmsghdr	*cmsg;
 
-	int		fd;
-
-	iov.iov_base = "1";
-	iov.iov_len = 1;
+	iov.iov_base = buf;
+	iov.iov_len = buflen;
 
 	msg.msg_name = NULL;
 	msg.msg_namelen = 0;
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
-	msg.msg_control = cmsgu.control;
-	msg.msg_controllen = sizeof(cmsgu.control);
 
-	cmsg = CMSG_FIRSTHDR(&msg);
-	cmsg->cmsg_len = CMSG_LEN(sizeof (int));
-	cmsg->cmsg_level = SOL_SOCKET;
-	cmsg->cmsg_type = SCM_RIGHTS;
+	if (fd != -1) {
+		msg.msg_control = cmsgu.control;
+		msg.msg_controllen = sizeof(cmsgu.control);
 
-	fd = creat("test-file", 0666);
-	printf ("passing fd %d\n", fd);
-	*((int *) CMSG_DATA(cmsg)) = fd;
+		cmsg = CMSG_FIRSTHDR(&msg);
+		cmsg->cmsg_len = CMSG_LEN(sizeof (int));
+		cmsg->cmsg_level = SOL_SOCKET;
+		cmsg->cmsg_type = SCM_RIGHTS;
+
+		printf ("passing fd %d\n", fd);
+		*((int *) CMSG_DATA(cmsg)) = fd;
+	} else {
+		msg.msg_control = NULL;
+		msg.msg_controllen = 0;
+		printf ("not passing fd\n");
+	}
 
 	size = sendmsg(sock, &msg, 0);
 
 	if (size < 0)
 		perror ("sendmsg");
+	return size;
+}
+
+void
+parent(int sock)
+{
+	ssize_t	size;
+	size = sock_fd_write(sock, "1", 1, 1);
+
+	printf ("wrote %d\n", size);
 }
 
 int
