@@ -25,15 +25,17 @@ child(int sock)
 	ssize_t	size;
 
 	sleep(1);
-	for (;;) {
-		size = sock_fd_read(sock, buf, sizeof(buf), &fd);
-		if (size <= 0)
-			break;
-		printf ("read %d\n", size);
-		if (fd != -1) {
-			write(fd, "hello, world\n", 13);
-			close(fd);
-		}
+	size = sock_fd_read(sock, buf, sizeof(buf), NULL);
+	if (size <= 0)
+		return;
+	printf ("read %d\n", size);
+	size = sock_fd_read(sock, buf, sizeof(buf), &fd);
+	if (size <= 0)
+		return;
+	printf ("read %d\n", size);
+	if (fd != -1) {
+		write(fd, "hello, world\n", 13);
+		close(fd);
 	}
 }
 
@@ -46,7 +48,9 @@ parent(int sock)
 
 	fd = 1;
 	size = sock_fd_write(sock, "1", 1, 1);
-	printf ("wrote %d\n", size);
+	printf ("wrote %d without fd\n", size);
+	size = sock_fd_write(sock, "1", 1, 2);
+	printf ("wrote %d with fd\n", size);
 }
 
 int

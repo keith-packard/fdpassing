@@ -24,6 +24,7 @@ child(int sock)
 	char	buf[16];
 	ssize_t	size;
 
+	sleep(1);
 	for (;;) {
 		size = sock_fd_read(sock, buf, sizeof(buf), &fd);
 		if (size <= 0)
@@ -48,6 +49,8 @@ parent(int sock)
 	printf ("wrote %d without fd\n", size);
 	size = sock_fd_write(sock, "1", 1, 1);
 	printf ("wrote %d with fd\n", size);
+	size = sock_fd_write(sock, "1", 1, -1);
+	printf ("wrote %d without fd\n", size);
 }
 
 int
