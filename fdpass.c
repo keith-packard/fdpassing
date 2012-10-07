@@ -45,6 +45,11 @@ sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd)
 			perror ("recvmsg");
 			exit(1);
 		}
+		if ((msg.msg_flags & MSG_TRUNC) ||
+		    (msg.msg_flags & MSG_CTRUNC)) {
+			fprintf (stderr, "control message truncated");
+			exit(1);
+		}
 		cmsg = CMSG_FIRSTHDR(&msg);
 		if (cmsg && cmsg->cmsg_len == CMSG_LEN(sizeof(int))) {
 			if (cmsg->cmsg_level != SOL_SOCKET) {
