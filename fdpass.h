@@ -20,16 +20,18 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <signal.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <fcntl.h>
 
 ssize_t
-sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd);
+sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd, int *nfd);
 
 ssize_t
-sock_fd_write(int sock, void *buf, ssize_t buflen, int fd);
+sock_fd_write(int sock, void *buf, ssize_t buflen, int *fd, int nfd);
 
 #endif

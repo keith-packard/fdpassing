@@ -17,22 +17,29 @@
 
 #include "fdpass.h"
 
+#define NFD	32
+
 void
 child(int sock)
 {
-	int	fd;
+	int	fd[NFD];
 	char	buf[16];
 	ssize_t	size;
+	int	nfd;
+	int	i;
 
 	sleep(1);
 	for (;;) {
-		size = sock_fd_read(sock, buf, sizeof(buf), &fd);
+		nfd = NFD;
+		size = sock_fd_read(sock, buf, sizeof(buf), fd, &nfd);
 		if (size <= 0)
 			break;
 		printf ("read %d\n", size);
-		if (fd != -1) {
-			write(fd, "hello, world\n", 13);
-			close(fd);
+		if (nfd) {
+			for (i = 0; i < nfd; i++) {
+				write(fd[i], "hello, world\n", 13);
+				close(fd[i]);
+			}
 		}
 	}
 }
@@ -45,11 +52,11 @@ parent(int sock)
 	int	fd;
 
 	fd = 1;
-	size = sock_fd_write(sock, "1", 1, -1);
+	size = sock_fd_write(sock, "1", 1, NULL, 0);
 	printf ("wrote %d without fd\n", size);
-	size = sock_fd_write(sock, "1", 1, 1);
+	size = sock_fd_write(sock, "1", 1, &fd, 1);
 	printf ("wrote %d with fd\n", size);
-	size = sock_fd_write(sock, "1", 1, -1);
+	size = sock_fd_write(sock, "1", 1, NULL, 0);
 	printf ("wrote %d without fd\n", size);
 }
 

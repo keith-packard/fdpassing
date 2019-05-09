@@ -17,19 +17,26 @@
 
 #include "fdpass.h"
 
+#define MAX_FDS		128
+
+struct fd_pass {
+	struct cmsghdr	cmsghdr;
+	int		fd[MAX_FDS];
+};
+
 ssize_t
-sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd)
+sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd, int *nfdp)
 {
 	ssize_t		size;
 
+	printf ("sock_fd_read\n");
 	if (fd) {
 		struct msghdr	msg;
 		struct iovec	iov;
-		union {
-			struct cmsghdr	cmsghdr;
-			char		control[CMSG_SPACE(sizeof (int))];
-		} cmsgu;
-		struct cmsghdr	*cmsg;
+		struct fd_pass	pass;
+		int		nfd_passed, nfd;
+		int		i;
+		int		*fd_passed;
 
 		iov.iov_base = buf;
 		iov.iov_len = bufsize;
@@ -38,35 +45,47 @@ sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd)
 		msg.msg_namelen = 0;
 		msg.msg_iov = &iov;
 		msg.msg_iovlen = 1;
-		msg.msg_control = cmsgu.control;
-		msg.msg_controllen = sizeof(cmsgu.control);
+		msg.msg_control = &pass;
+		msg.msg_controllen = sizeof pass;
 		size = recvmsg (sock, &msg, 0);
 		if (size < 0) {
 			perror ("recvmsg");
 			exit(1);
 		}
-		if ((msg.msg_flags & MSG_TRUNC) ||
-		    (msg.msg_flags & MSG_CTRUNC)) {
-			fprintf (stderr, "control message truncated");
-			exit(1);
-		}
-		cmsg = CMSG_FIRSTHDR(&msg);
-		if (cmsg && cmsg->cmsg_len == CMSG_LEN(sizeof(int))) {
-			if (cmsg->cmsg_level != SOL_SOCKET) {
-				fprintf (stderr, "invalid cmsg_level %d\n",
-					 cmsg->cmsg_level);
+		if (size > 0 && pass.cmsghdr.cmsg_len > sizeof (struct cmsghdr)) {
+			if ((msg.msg_flags & MSG_TRUNC) ||
+			    (msg.msg_flags & MSG_CTRUNC)) {
+				fprintf (stderr, "control message truncated");
 				exit(1);
 			}
-			if (cmsg->cmsg_type != SCM_RIGHTS) {
+			if (pass.cmsghdr.cmsg_level != SOL_SOCKET) {
+				fprintf (stderr, "invalid cmsg_level %d\n",
+					 pass.cmsghdr.cmsg_level);
+				exit(1);
+			}
+			if (pass.cmsghdr.cmsg_type != SCM_RIGHTS) {
 				fprintf (stderr, "invalid cmsg_type %d\n",
-					 cmsg->cmsg_type);
+					 pass.cmsghdr.cmsg_type);
 				exit(1);
 			}
 
-			*fd = *((int *) CMSG_DATA(cmsg));
-			printf ("received fd %d\n", *fd);
+			nfd_passed = (pass.cmsghdr.cmsg_len - sizeof (struct cmsghdr)) / sizeof (int);
+			fd_passed = (int *) CMSG_DATA(&pass.cmsghdr);
+
+			nfd = *nfdp;
+			if (nfd > nfd_passed)
+				nfd = nfd_passed;
+
+			memcpy(fd, fd_passed, nfd * sizeof (int));
+			for (i = 0; i < nfd; i++)
+				printf ("received fd %d\n", fd[i]);
+			for (i = nfd; i < nfd_passed; i++) {
+				printf ("dropping fd %d\n", fd_passed[i]);
+				close(fd_passed[i]);
+			}
+			*nfdp = nfd;
 		} else
-			*fd = -1;
+			*nfdp = 0;
 	} else {
 		size = read (sock, buf, bufsize);
 		if (size < 0) {
@@ -78,36 +97,43 @@ sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd)
 }
 
 ssize_t
-sock_fd_write(int sock, void *buf, ssize_t buflen, int fd)
+sock_fd_write(int sock, void *buf, ssize_t buflen, int *fd, int nfd)
 {
 	ssize_t		size;
 	struct msghdr	msg;
 	struct iovec	iov;
-	union {
-		struct cmsghdr	cmsghdr;
-		char		control[CMSG_SPACE(sizeof (int))];
-	} cmsgu;
-	struct cmsghdr	*cmsg;
+	struct fd_pass	pass;
+	int		i;
 
 	iov.iov_base = buf;
 	iov.iov_len = buflen;
 
 	msg.msg_name = NULL;
 	msg.msg_namelen = 0;
-	msg.msg_iov = &iov;
-	msg.msg_iovlen = 1;
+	if (buflen) {
+		msg.msg_iov = &iov;
+		msg.msg_iovlen = 1;
+	} else {
+		msg.msg_iov = NULL;
+		msg.msg_iovlen = 0;
+	}
 
-	if (fd != -1) {
-		msg.msg_control = cmsgu.control;
-		msg.msg_controllen = sizeof(cmsgu.control);
+	if (nfd) {
+		if (nfd > MAX_FDS) {
+			printf ("passing too many fds\n");
+			exit(1);
+		}
 
-		cmsg = CMSG_FIRSTHDR(&msg);
-		cmsg->cmsg_len = CMSG_LEN(sizeof (int));
-		cmsg->cmsg_level = SOL_SOCKET;
-		cmsg->cmsg_type = SCM_RIGHTS;
+		msg.msg_control = &pass;
+		msg.msg_controllen = sizeof (struct cmsghdr) + nfd * sizeof (int);
 
-		printf ("passing fd %d\n", fd);
-		*((int *) CMSG_DATA(cmsg)) = fd;
+		pass.cmsghdr.cmsg_len = msg.msg_controllen;
+		pass.cmsghdr.cmsg_level = SOL_SOCKET;
+		pass.cmsghdr.cmsg_type = SCM_RIGHTS;
+
+		memcpy(&pass.fd, fd, nfd * sizeof (int));
+		for (i = 0; i < nfd; i++)
+			printf ("passing fd %d\n", pass.fd[i]);
 	} else {
 		msg.msg_control = NULL;
 		msg.msg_controllen = 0;

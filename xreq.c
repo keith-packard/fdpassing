@@ -27,11 +27,13 @@ child(int sock)
 	int	i, reqlen;
 	ssize_t	size, fdsize;
 	int	fd = -1, *fdp;
+	int	nfd;
 	int	j;
 
 	sleep (1);
 	for (j = 0;; j++) {
-		size = sock_fd_read(sock, xreq, sizeof (xreq), NULL);
+		nfd = 0;
+		size = sock_fd_read(sock, xreq, sizeof (xreq), NULL, &nfd);
 		printf ("got %d\n", size);
 		if (size == 0)
 			break;
@@ -48,7 +50,8 @@ child(int sock)
 					fprintf (stderr, "Got fd req, but not at end of input %d < %d\n",
 						 i, size);
 				}
-				fdsize = sock_fd_read(sock, xnop, sizeof (xnop), &fd);
+				nfd = 1;
+				fdsize = sock_fd_read(sock, xnop, sizeof (xnop), &fd, &nfd);
 				if (fd == -1) {
 					fprintf (stderr, "no fd received\n");
 				} else {
@@ -89,19 +92,20 @@ parent(int sock)
 		for (i = 0; i < 8; i++) {
 			xreq[0] = 0;
 			xreq[1] = sizeof (xreq);
-			sock_fd_write(sock, xreq, sizeof (xreq), -1);
+			sock_fd_write(sock, xreq, sizeof (xreq), NULL, 0);
 		}
 
 		/* Write our 'pass an fd' request with a 'useless' FD to block the receiver */
 		xreq[0] = 1;
 		xreq[1] = sizeof(xreq);
-		sock_fd_write(sock, xreq, sizeof (xreq), 1);
+		fd = 1;
+		sock_fd_write(sock, xreq, sizeof (xreq), &fd, 1);
 
 		/* Pass an fd */
 		xnop[0] = 2;
 		xnop[1] = sizeof (xnop);
 		fd = tmp_file(j);
-		sock_fd_write(sock, xnop, sizeof (xnop), fd);
+		sock_fd_write(sock, xnop, sizeof (xnop), &fd, 1);
 		close(fd);
 	}
 }
