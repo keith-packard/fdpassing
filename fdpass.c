@@ -37,9 +37,14 @@ sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd, int *nfdp)
 		int		nfd_passed, nfd;
 		int		i;
 		int		*fd_passed;
+		int		type;
+		int		length;
 
 		iov.iov_base = buf;
 		iov.iov_len = bufsize;
+
+		length = sizeof( int );
+		getsockopt (sock, SOL_SOCKET, SO_TYPE, &type, &length);
 
 		msg.msg_name = NULL;
 		msg.msg_namelen = 0;
@@ -52,7 +57,7 @@ sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd, int *nfdp)
 			perror ("recvmsg");
 			exit(1);
 		}
-		if (size > 0 && pass.cmsghdr.cmsg_len > sizeof (struct cmsghdr)) {
+		if ((size > 0 || type == SOCK_SEQPACKET) && pass.cmsghdr.cmsg_len > sizeof (struct cmsghdr)) {
 			if ((msg.msg_flags & MSG_TRUNC) ||
 			    (msg.msg_flags & MSG_CTRUNC)) {
 				fprintf (stderr, "control message truncated");
@@ -68,7 +73,6 @@ sock_fd_read(int sock, void *buf, ssize_t bufsize, int *fd, int *nfdp)
 					 pass.cmsghdr.cmsg_type);
 				exit(1);
 			}
-
 			nfd_passed = (pass.cmsghdr.cmsg_len - sizeof (struct cmsghdr)) / sizeof (int);
 			fd_passed = (int *) CMSG_DATA(&pass.cmsghdr);
 

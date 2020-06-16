@@ -303,7 +303,7 @@ Can a file descriptor be passed without sending any data?
 And the answer is clearly "no" -- the file descriptor is not passed
 when no data are included in the write.
 
-(update, 2019-5-8 from Yicholas Rishel)
+(update, 2019-5-8 from Nicholas Rishel)
 
 This is true for SOCK_STREAM sockets, but for SOCK_SEQPACKET sockets,
 you *can* do zero-length writes and pass an fd.
@@ -316,7 +316,7 @@ you *can* do zero-length writes and pass an fd.
  2. failing to accept an fd in the receiver results in the fd being
     closed by the kernel.
 
- 3. a file descriptor must be accompanied by some data.
+ 3. a file descriptor must be accompanied by some data if sent via stream.
 
 ## Make X pass file descriptors
 

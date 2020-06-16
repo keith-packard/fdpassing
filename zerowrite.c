@@ -25,17 +25,28 @@ child(int sock)
 	ssize_t	size;
 
 	sleep(1);
-	for (;;) {
-		nfd = 1;
-		size = sock_fd_read(sock, buf, sizeof(buf), &fd, &nfd);
-		if (size <= 0)
-			break;
-		printf ("read %d nfd %d\n", size, nfd);
-		if (nfd == 1) {
-			write(fd, "hello, world\n", 13);
-			close(fd);
-		}
+	size = sock_fd_read(sock, buf, sizeof(buf), NULL, NULL);
+	if (size <= 0) {
+		printf ("<=0");
+		return;
 	}
+	printf ("read %d\n", size);
+
+	nfd = 1;
+	size = sock_fd_read(sock, buf, sizeof(buf), &fd, &nfd);
+	printf ("read %d nfd %d\n", size, nfd);
+	if (nfd == 1) {
+		write(fd, "hello, world\n", 13);
+		close(fd);
+	}
+
+
+	size = sock_fd_read(sock, buf, sizeof(buf), NULL, NULL);
+	if (size <= 0) {
+		printf ("<=0");
+		return;
+	}
+	printf ("read %d\n", size);
 }
 
 void
@@ -60,7 +71,7 @@ main(int argc, char **argv)
 	int	sv[2];
 	int	pid;
 
-	if (socketpair(AF_LOCAL, SOCK_STREAM, 0, sv) < 0) {
+	if (socketpair(AF_LOCAL, SOCK_SEQPACKET, 0, sv) < 0) {
 		perror("socketpair");
 		exit(1);
 	}
